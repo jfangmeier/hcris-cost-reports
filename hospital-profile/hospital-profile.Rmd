@@ -1,0 +1,454 @@
+---
+title: "Browsing financial and facility data of America's hospitals"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    social: menu
+    source_code: https://github.com/walkerke/neighborhood_diversity
+    theme: sandstone
+
+---
+
+<!-- Learn more about flexdashboard at https://rstudio.github.io/flexdashboard -->
+
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(here)
+library(glue)
+library(crosswalkr)
+library(leaflet)
+library(htmltools)
+library(shiny)
+library(shinyWidgets)
+library(flexdashboard)
+library(scales)
+library(gt)
+
+# Read in data
+costreports <- readRDS(here::here("data", "costreports.rds")) %>%
+  mutate(period = paste0(
+    stamp("March 1, 1999")(period_beg),
+    " - ",
+    stamp("March 1, 1999")(period_end)
+  ))
+#costreports <- readRDS(url('https://www.dropbox.com/s/5pcqif0f8cg4yu4/costreports.rds?raw=1'))
+
+costreport_var_df <- 
+tibble::tribble(
+                    ~variable,                   ~var_name, ~position,   ~format, ~table,
+                       "year",                      "Year",         1,   "other",      0,
+                     "period",                    "Period",         2,   "other",      1,
+                  "reporting",                 "Reporting",         3,   "other",      0,
+                  "prvdr_num",                    "Number",         4,   "other",      0,
+              "hospital_name",                      "Name",         5,   "other",      0,
+                    "control",                   "Control",        25,   "other",      0,
+                       "city",                      "City",         6,   "other",      0,
+                      "state",                     "State",         7,   "other",      0,
+                    "address",                   "Address",         8,   "other",      0,
+                       "type",                      "Type",         9,   "other",      0,
+                 "beds_total",                      "Beds",        10,   "comma",      1,
+                   "teaching",           "Teaching Status",        19,   "other",      1,
+        "net_patient_revenue",       "Net Patient Revenue",        14,  "dollar",      1,
+                 "net_income",                "Net Income",        15,  "dollar",      1,
+                    "uc_cost",   "Uncompensated Care Cost",        17,  "dollar",      1,
+          "ip_bed_days_total",                   "IP Days",        13,   "comma",      1,
+        "ip_discharges_total",             "IP Discharges",        12,   "comma",      1,
+    "total_residents_interns",         "Residents/Interns",        20,   "comma",      1,
+            "total_employees",                 "Employees",        11,   "comma",      1,
+  "medical_education_funding", "Medical Education Funding",        21,  "dollar",      1,
+                "dsh_funding",               "DSH Funding",        18,  "dollar",      1,
+           "operating_margin",          "Operating Margin",        16, "percent",      1,
+              "excess_margin",             "Excess Margin",        17, "percent",      1,
+                   "zip_code",                       "ZIP",        22,   "other",      0,
+                        "lat",                       "Lat",        23,   "other",      0,
+                        "lon",                       "Lon",        24,   "other",      0
+  )
+
+costreports_df <-
+  costreports %>%
+  crosswalkr::renamefrom(cw_file = costreport_var_df,
+                         raw = variable,
+                         clean = var_name)
+
+vars_dollar <-
+  costreport_var_df %>% filter(format == "dollar") %>% pull(var_name)
+vars_percent <-
+  costreport_var_df %>% filter(format == "percent") %>% pull(var_name)
+vars_comma <-
+  costreport_var_df %>% filter(format == "comma") %>% pull(var_name)
+vars_table <-
+  costreport_var_df %>% filter(table == 1) %>% pull(var_name)
+
+input_list_df <- costreports_df %>%
+  filter(State %in% c("DC", state.abb) & Reporting == "FY") %>%
+  group_by(Number) %>%
+  arrange(-Year) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(Hospital = paste0(Number, ": ", Name)) %>%
+  distinct(State, City, Hospital)
+
+state_list <- input_list_df %>%
+  pull(State) %>%
+  unique() %>%
+  sort()
+
+city_list <- input_list_df %>%
+  filter(State == "MN") %>%
+  pull(City) %>%
+  unique() %>%
+  sort()
+
+hospital_list <- input_list_df %>%
+  filter(State == "MN") %>%
+  pull(Hospital) %>%
+  unique() %>%
+  sort()
+
+hospital_name_fcn <- function(name, number, type, control, address) {
+  div(style = "background: white; color: black",
+      h1(name),
+      h2(paste0("CCN: ", number)),
+      h2(paste0("Type: ", type)),
+      h2(paste0("Control: ", control)),
+      h3(address))
+}
+```
+
+Sidebar {.sidebar}
+======================================================================
+
+```{r}
+# Define inputs
+p("")
+pickerInput(
+  inputId = "type",
+  label = "Select reporting format:",
+  choices = c(
+    "Hospital Fiscal Year (as reported)",
+    "Synthetic Calendar Year (experimental)"
+  ),
+  selected = "Hospital Fiscal Year (as reported)",
+  options = list(
+    `actions-box` = TRUE,
+    size = 10,
+    `selected-text-format` = "count > 3"
+  ),
+  multiple = FALSE
+)
+
+pickerInput(
+  inputId = "state",
+  label = "Choose a state:",
+  choices = state_list,
+  selected = "MN",
+  options = list(
+    `actions-box` = TRUE,
+    size = 10,
+    `selected-text-format` = "count > 3"
+  ),
+  multiple = FALSE
+)
+
+pickerInput(
+  inputId = "city",
+  label = "Choose a city (optional):",
+  choices = city_list,
+  options = list(
+    `actions-box` = TRUE,
+    size = 10,
+    `selected-text-format` = "count > 3"
+  ),
+  multiple = TRUE
+)
+
+pickerInput(
+  inputId = "hospital",
+  label = "Choose a hospital:",
+  choices = hospital_list,
+  selected = head(hospital_list, 1),
+  options = list(
+    `actions-box` = TRUE,
+    size = 10,
+    `selected-text-format` = "count > 3"
+  ),
+  multiple = FALSE
+)
+```
+
+Use the __Hospital Profiles__ tab to browse individual hospitals across the United States. Two reporting formats are available in the menu above: _fiscal year_ and _calendar year_. The fiscal year format is the reporting submitted directly by hospitals to the Centers for Medicare and Medicaid Services (CMS), using each hospital's specific fiscal year definition. The calendar year format harmonizes all the hospital reports to calendar years (January to December) to make hospital-to-hospital comparison easier, but this feature is still experimental.  
+
+Go the __Glossary__ tab for details and definitions of the measures included in each profile page. For more background on this dashboard, click the __About__ tab.  
+
+Application author: [Josh Fangmeier](https://twitter.com/joshfangmeier)
+
+Hospital Profiles
+======================================================================
+
+Row
+-----------------------------------------------------------------------
+
+### Hospital name and basic information
+
+```{r}
+costreports_df_react <- reactive({
+  if (input$type == "Hospital Fiscal Year (as reported)") {
+    reporting_type <- "FY"
+  } else {
+    reporting_type <- "CY"
+  }
+  costreports_df %>%
+    filter(Number == substr(input$hospital, 1, 6) &
+             Reporting == reporting_type)
+})
+
+observeEvent(input$state, {
+  city_list <-
+    input_list_df %>% filter(State == input$state) %>% pull(City) %>% unique() %>% sort()
+  hospital_list <-
+    input_list_df %>% filter(State == input$state) %>% pull(Hospital) %>% sort()
+  
+  updatePickerInput(session,
+                    inputId = "city",
+                    label = "Choose a city (optional):",
+                    choices = city_list)
+  
+  updatePickerInput(session,
+                    inputId = "hospital",
+                    label = "Choose a hospital:",
+                    choices = hospital_list)
+}, ignoreInit = TRUE)
+
+observeEvent(input$city, {
+  if (length(input$city) == 0) {
+    hospital_list <-
+      input_list_df %>% filter(State == input$state) %>% pull(Hospital) %>% sort()
+  } else {
+    hospital_list <-
+      input_list_df %>% filter(State == input$state &
+                                 City %in% input$city) %>% pull(Hospital) %>% sort()
+  }
+  
+  updatePickerInput(session,
+                    inputId = "hospital",
+                    label = "Choose a hospital:",
+                    choices = hospital_list)
+}, ignoreInit = TRUE)
+```
+
+```{r}
+# Here, we draw the diversity gradient with ggplotly
+output$ui_output <- renderUI({
+  costreports_df_react() %>%
+    tail(n = 1) %>%
+    select(
+      name = Name,
+      number = Number,
+      type = Type,
+      control = Control,
+      address = Address
+    ) %>%
+    mutate(display = pmap(list(name, number, type, control, address),
+                          hospital_name_fcn)) %>%
+    pull(display)
+})
+shiny::uiOutput("ui_output")
+```
+
+### Map of hospital location
+
+```{r}
+# Draw the map without selected tracts
+output$map <- renderLeaflet({
+  costreports_df_map <- costreports_df_react() %>%
+    tail(n = 1) %>%
+    select(
+      `Hospital ID` = Number,
+      Year,
+      Hospital = Name,
+      Lat = Lat,
+      Long = Lon
+    )
+  
+  map_lat <- costreports_df_map$Lat
+  map_lon <- costreports_df_map$Long
+  
+  map_labs <-
+    lapply(seq(nrow(costreports_df_map)), function(i) {
+      paste0(
+        '<b>',
+        costreports_df_map[i, "Hospital"],
+        '</b>',
+        '<br/>',
+        'CCN: ',
+        costreports_df_map[i, "Hospital ID"],
+        '<br/>'
+      )
+    })
+  
+  leaflet_map <- costreports_df_map %>%
+    leaflet() %>%
+    addTiles() %>%
+    setView(lng = map_lon, lat = map_lat, zoom = 10) %>%
+    addMarkers(
+      lng = ~ Long,
+      lat = ~ Lat,
+      popup = lapply(map_labs, HTML)
+    )
+  leaflet_map
+})
+leafletOutput('map', height = "300px") 
+```
+
+Row 
+-----------------------------------------------------------------------
+
+### Select hospital data by reporting period
+
+```{r}
+financial_tbl_gt <- reactive({
+  costreports_df_react() %>%
+    select(one_of(vars_table)) %>%
+    mutate_all( ~ ifelse(is.na(.), 0, .)) %>%
+    mutate_at(vars(one_of(vars_dollar)),
+              ~ scales::dollar(.)) %>%
+    mutate_at(vars(one_of(vars_percent)),
+              ~ scales::percent(.)) %>%
+    mutate_at(vars(one_of(vars_comma)),
+              ~ scales::comma(.)) %>%
+    gather(var, value,-Period) %>%
+    spread(Period, value) %>%
+    rename(`Reporting Period` = var) %>%
+    inner_join(
+      costreport_var_df %>% select(var_name, position),
+      by = c("Reporting Period" = "var_name")
+    ) %>%
+    arrange(position) %>%
+    select(-position) %>%
+    gt() %>%
+    tab_row_group(
+      group = "Facility and Volume",
+      rows = `Reporting Period` %in% c("Beds", "Employees", "IP Days", "IP Discharges")
+    ) %>%
+    tab_row_group(
+      group = "Financial Summary",
+      rows = `Reporting Period` %in% c(
+        "Net Patient Revenue",
+        "Net Income",
+        "Operating Margin",
+        "Excess Margin"
+      )
+    ) %>%
+    tab_row_group(group = "Safety Net",
+                  rows = `Reporting Period` %in% c("DSH Funding", "Uncompensated Care Cost")) %>%
+    tab_row_group(
+      group = "Medical Education",
+      rows = `Reporting Period` %in% c(
+        "Teaching Status",
+        "Residents/Interns",
+        "Medical Education Funding"
+      )
+    )
+    })
+
+output$financial_table <-
+  render_gt(expr = financial_tbl_gt(),
+            height = pct(100),
+            width = pct(100))
+
+gt::gt_output('financial_table')
+```
+
+Glossary
+============================================================================
+
+```{r}
+tibble::tribble(
+                    ~Variable,                                                                                                 ~Definition,                                                                                                         ~Location,
+                       "Beds",                                                           "Total number of available beds across all units",                                                                               "Worksheet S3-1, column 2, line 14",
+                        "CCN",                 "CMS certification number provided to each hospital facility that participates in Medicare",                                                                                    "Column 3 of the RPT.csv file",
+                    "Control",                                  "The hospital's type of control from its most recent Medicare cost report",                                                                                    "Column 2 of the RPT.csv file",
+                "DSH Funding",       "Medicare disproportionate share payment to support hospitals with large shares of indigent patients",                                                                                          "Worksheet E-A, line 34",
+                  "Employees",                                                                         "Total employees (FTEs) on payroll",                                                                              "Worksheet S3-1, column 10, line 14",
+              "Excess Margin",                                                              "Financial margin for all hospital activities", "(Net Patient Revenue - Operating Expense + Nonoperating Revenue) / (Net Patient Revenue + Nonoperating Revenue)",
+                    "IP Days",                                        "The total number of patient days in the hospital across all payers",                                                                               "Worksheet S3-1, column 8, line 14",
+              "IP Discharges",        "The total number of patients formally released by the hospital, including death, across all payers",                                                                              "Worksheet S3-1, column 15, line 14",
+  "Medical Education Funding",                          "Medicare funding for the indirect and direct costs of training medical residents",                                                        "Sum of worksheet E-A, line 29 and worksheet E-4, line 29",
+                 "Net Income",                        "Net income (or loss) for the period after accounting for all revenues and expenses",                                                                                 "Worksheet G3, column 1, line 29",
+        "Net Patient Revenue",                    "Revenue collected by the hospital for patient care after payer discounts (not charges)",                                                                                  "Worksheet G3, column 1, line 3",
+           "Operating Margin",                                            "Financial margin for patient care activities across all payers",                                          "(Net Patient Revenue - Total Operating Expenses) / Net Patient Revenue",
+          "Residents/Interns",                                                                        "Total interns and residents (FTEs)",                                                                               "Worksheet S3-1, column 9, line 14",
+            "Teaching Status", "Indicator of whether the hospital is training residents in an approved graduate medical education program",                                                                               "Worksheet S2-1, column 1, line 56",
+                       "Type",                           "Indicator of the type of hospital: critical access, short-term acute care, etc.",                                                                      "Determined by the last 4 digits of the CCN",
+    "Uncompensated Care Cost",                     "Cost of uncompensated care, including bad debt and charity care, provided to patients",                                                                                "Worksheet S10, column 1, line 30"
+  ) %>% 
+  gt()
+```
+
+About
+============================================================================
+
+This dashboard supports the accessibility of [Medicare Cost Report data](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/Cost-Reports/) to allow users to see what individual hospitals are reporting to the federal government. Medicare hospital cost reports are annual reports that all Medicare-certified hospitals are required to submit to Medicare, and they serve as the only free and publicly available source of detailed financial and facility data for most American hospitals. While the reports are designed to facilitate payments from Medicare, they contain useful hospital-specific data, such as facility characteristics, utilization data, as well as costs and revenues across all payers. 
+
+Medicare cost reports can be a challenging data source. The reports are stored in relational tables as part of HCRIS (Healthcare Cost Report Information System). To access the data, users must link records across multiple tables together and separately identify the variables of interest by looking up the worksheet, column, and row combinations for where hospital responses are stored. [Costreportdata.com](https://www.costreportdata.com/worksheet_formats.html) is an incredibly helpful resource for browsing each of the worksheets. Cost report data is also _notoriously noisy_ with statistical outliers. Please note this dashboard does not make any adjustments for outliers or inflation.
+
+Each hospital's cost report is submitted with data on its most recent fiscal year, and many hospitals have fiscal years that do not match the calendar year. To account for this, I borrowed a technique developed by [Adam Sacarny for his own cost report processing code (written in Stata)](https://github.com/asacarny/hospital-cost-reports) that converted the fiscal year data to synthetic calendar years by splitting the fiscal years into the calendar years they fall into and then combining the pieces of data together for each calendar year. While I borrow this from him, the responsibility for any mistakes is mine.
+
+The application is built with the [Shiny](http://shiny.rstudio.com) framework and the [flexdashboard](http://rstudio.github.io/flexdashboard/index.html) package using R. The application relies on [Leaflet.js](http://leafletjs.com/) for mapping and [gt](https://github.com/rstudio/gt) for formatting all the tables. Kyle Walker's [flexboard example](https://walkerke.shinyapps.io/neighborhood_diversity/) provided plenty of inspiration for this project.  
+
+Please share any feedback you have on this project. You can [connect with me on Twitter](https://twitter.com/joshfangmeier).  
+
+
+
+<style>
+
+.section.sidebar {
+
+  background-color: white; 
+  font-family: "Open-Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+}
+
+.js-irs-0 .irs-bar {
+border-top-color: #443A83;
+border-bottom-color: #443A83;
+} 
+
+.js-irs-0 .irs-bar-edge {
+border-color: #443A83;
+}
+
+.js-irs-0 .irs-single, .js-irs-0 .irs-bar-edge, .js-irs-0 .irs-bar {
+background: #443A83;
+}
+
+.navbar-inverse {
+background-color: #443A83;
+border-color: #440154;
+}
+
+.navbar-inverse .navbar-brand {
+color: #a3a9ac;
+}
+
+a:hover, a:focus {
+color: #440154;
+text-decoration: underline;
+}
+
+a {
+color: #443A83;
+text-decoration: none;
+}
+
+.navbar-inverse .navbar-nav>li>a {
+color: #a3a9ac;
+}
+
+</style>

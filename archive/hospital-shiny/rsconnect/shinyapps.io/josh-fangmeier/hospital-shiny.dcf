@@ -1,0 +1,10 @@
+name: hospital-shiny
+title:
+username:
+account: josh-fangmeier
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1260432
+bundleId: 2453451
+url: https://josh-fangmeier.shinyapps.io/hospital-shiny/
+when: 1569791874.9914
