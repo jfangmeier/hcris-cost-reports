@@ -31,13 +31,13 @@ library(scales)
 library(gt)
 
 # Read in data
-costreports <- readRDS(here::here("data", "costreports.rds")) %>%
+#costreports <- readRDS(here::here("data", "costreports.rds")) 
+costreports <- readRDS(url('https://www.dropbox.com/s/jvyw9v9gdpf0rea/costreports.rds?raw=1'))%>%
   mutate(period = paste0(
     stamp("March 1, 1999")(period_beg),
     " - ",
     stamp("March 1, 1999")(period_end)
   ))
-#costreports <- readRDS(url('https://www.dropbox.com/s/5pcqif0f8cg4yu4/costreports.rds?raw=1'))
 
 costreport_var_df <- 
 tibble::tribble(
