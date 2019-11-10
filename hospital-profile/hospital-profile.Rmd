@@ -6,7 +6,7 @@ output:
     orientation: rows
     vertical_layout: fill
     social: menu
-    source_code: https://github.com/walkerke/neighborhood_diversity
+    source_code: https://github.com/jfangmeier/hcris-cost-reports
     theme: sandstone
 
 ---
@@ -309,7 +309,7 @@ leafletOutput('map', height = "300px")
 Row 
 -----------------------------------------------------------------------
 
-### Select hospital data by reporting period
+### Hospital data by reporting period
 
 ```{r}
 financial_tbl_gt <- reactive({
