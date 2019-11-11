@@ -369,6 +369,7 @@ Glossary
 ============================================================================
 
 ```{r}
+glossary_tbl_gt <- 
 tibble::tribble(
                     ~Variable,                                                                                                 ~Definition,                                                                                                         ~Location,
                        "Beds",                                                           "Total number of available beds across all units",                                                                               "Worksheet S3-1, column 2, line 14",
@@ -389,6 +390,13 @@ tibble::tribble(
     "Uncompensated Care Cost",                     "Cost of uncompensated care, including bad debt and charity care, provided to patients",                                                                                "Worksheet S10, column 1, line 30"
   ) %>% 
   gt()
+
+output$glossary <-
+  render_gt(expr = glossary_tbl_gt,
+            height = pct(100),
+            width = pct(100))
+
+gt::gt_output('glossary')
 ```
 
 About
