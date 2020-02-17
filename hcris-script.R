@@ -10,7 +10,7 @@ library(tidylog)
 hcris_path <-
   file.path("C:",
             "Users",
-            "Josh",
+            "jfang",
             "Dropbox",
             "Projects",
             "data",
@@ -71,6 +71,10 @@ hcris_num_vars <- lookup %>%
   filter(num_var == 1) %>% 
   pull(var)
 
+hcris_synth_vars <- lookup %>% 
+  filter(num_var == 1 & characteristic_val == 0) %>% 
+  pull(var)
+
 gen_info <-
   read_csv(here::here("misc", "hospital-general-information.csv")) %>%
   mutate(
@@ -87,6 +91,12 @@ gen_info <-
       pad = "0"
     )
   )
+
+hosp_compendium <- 
+  read_csv(url("https://www.ahrq.gov/sites/default/files/wysiwyg/chsp/compendium/compendium_system_hospital_linkage_file.csv")) %>% 
+  select(prvdr_num = ccn,
+         health_sys_name) %>% 
+  filter(!is.na(prvdr_num))
 
 facility_type <- tribble(
   ~ type, ~ class,
@@ -223,11 +233,11 @@ hcris_df_cy <- hcris_df %>%
   filter(totfrac == 1) %>% 
   ungroup() %>% 
   mutate(frac_year_covered = as.integer(days_in_year) / as.integer(mdy(paste0("12","31", year)) - mdy(paste0("01","01",year)) + 1)) %>% 
-  mutate_at(vars(one_of(hcris_num_vars)), list(~.*frac_rpt_in_year)) %>% #scale the flows by the share of the report that was in the target year
+  mutate_at(vars(one_of(hcris_synth_vars)), list(~.*frac_rpt_in_year)) %>% #scale the flows by the share of the report that was in the target year
   group_by(prvdr_num, year) %>% 
   mutate(tot_frac_year = sum(frac_year_covered)) %>% 
   filter(tot_frac_year > .7) %>% 
-  mutate_at(vars(one_of(hcris_num_vars)), #collapse the rows and prorate if reports cover >70% of the target year
+  mutate_at(vars(one_of(hcris_synth_vars)), #collapse the rows and prorate if reports cover >70% of the target year
             list(~sum(.)/tot_frac_year)) %>% 
   ungroup() %>% 
   distinct(prvdr_num, year, .keep_all = TRUE) %>% 
@@ -262,7 +272,9 @@ hcris_df_final <- bind_rows(
                                      "Governmental, Other"))) %>% 
   inner_join(gen_info, by = "prvdr_num") %>% 
   inner_join(facility_type, by = "class") %>% 
-  select(prvdr_num, year, hospital_name, city, state, type, everything(), -gme_parta, -gme_partb, -ime1, -ime2, -dsh1, -dsh2, -ccr, -class)
+  left_join(hosp_compendium, by = "prvdr_num") %>% 
+  select(prvdr_num, year, hospital_name, city, state, type, everything(), -gme_parta, -gme_partb, -ime1, -ime2, -dsh1, -dsh2, -ccr, -class) %>% 
+  mutate(health_sys_name = ifelse(is.na(health_sys_name), "No Affiliation", health_sys_name))
 
 ##4. Save data frame as RDS file
 saveRDS(hcris_df_final, here::here("data","costreports.rds"))

@@ -17,6 +17,7 @@ output:
 ```{r setup, include=FALSE}
 library(dplyr)
 library(tidyr)
+library(readr)
 library(lubridate)
 library(purrr)
 library(here)
@@ -67,7 +68,8 @@ tibble::tribble(
               "excess_margin",             "Excess Margin",        17, "percent",      1,
                    "zip_code",                       "ZIP",        22,   "other",      0,
                         "lat",                       "Lat",        23,   "other",      0,
-                        "lon",                       "Lon",        24,   "other",      0
+                        "lon",                       "Lon",        24,   "other",      0,
+            "health_sys_name",                    "System",        26,   "other",      0
   )
 
 costreports_df <-
@@ -92,7 +94,7 @@ input_list_df <- costreports_df %>%
   slice(1) %>%
   ungroup() %>%
   mutate(Hospital = paste0(Number, ": ", Name)) %>%
-  distinct(State, City, Hospital)
+  distinct(State, City, Hospital, System)
 
 state_list <- input_list_df %>%
   pull(State) %>%
@@ -105,26 +107,33 @@ city_list <- input_list_df %>%
   unique() %>%
   sort()
 
+system_list <- input_list_df %>% 
+  filter(State == "MN") %>% 
+  pull(System) %>% 
+  unique() %>% 
+  sort()
+
 hospital_list <- input_list_df %>%
   filter(State == "MN") %>%
   pull(Hospital) %>%
   unique() %>%
   sort()
 
-hospital_name_fcn <- function(name, number, type, control, address) {
-  div(style = "background: white; color: black",
-      h1(name),
-      h2(paste0("CCN: ", number)),
-      h2(paste0("Type: ", type)),
-      h2(paste0("Control: ", control)),
-      h3(address))
+hospital_name_fcn <- function(name, number, type, control, system, address) {
+  div(style = "height: 300px; overflow-y: auto; background: white; color: black",
+      h2(name),
+      h3(paste0("CCN: ", number)),
+      h3(paste0("Type: ", type)),
+      h3(paste0("Control: ", control)),
+      h3(paste0("Hospital System: ", system)),
+      h4(address))
 }
 ```
 
 Sidebar {.sidebar}
 ======================================================================
 
-```{r}
+```{r menus}
 # Define inputs
 p("")
 pickerInput(
@@ -145,7 +154,7 @@ pickerInput(
 
 pickerInput(
   inputId = "state",
-  label = "Choose a state:",
+  label = "Choose a state (required):",
   choices = state_list,
   selected = "MN",
   options = list(
@@ -156,10 +165,24 @@ pickerInput(
   multiple = FALSE
 )
 
+strong("Optional: select either a city or hospital system")
+
 pickerInput(
   inputId = "city",
-  label = "Choose a city (optional):",
+  label = "City:",
   choices = city_list,
+  options = list(
+    `actions-box` = TRUE,
+    size = 10,
+    `selected-text-format` = "count > 3"
+  ),
+  multiple = TRUE
+)
+
+pickerInput(
+  inputId = "system",
+  label = "Hospital system:",
+  choices = system_list,
   options = list(
     `actions-box` = TRUE,
     size = 10,
@@ -196,7 +219,7 @@ Row
 
 ### Hospital name and basic information
 
-```{r}
+```{r react df}
 costreports_df_react <- reactive({
   if (input$type == "Hospital Fiscal Year (as reported)") {
     reporting_type <- "FY"
@@ -211,13 +234,45 @@ costreports_df_react <- reactive({
 observeEvent(input$state, {
   city_list <-
     input_list_df %>% filter(State == input$state) %>% pull(City) %>% unique() %>% sort()
+  system_list <- 
+    input_list_df %>% filter(State == input$state) %>% pull(System) %>% unique() %>% sort()
   hospital_list <-
     input_list_df %>% filter(State == input$state) %>% pull(Hospital) %>% sort()
   
   updatePickerInput(session,
                     inputId = "city",
-                    label = "Choose a city (optional):",
+                    label = "City (optional):",
                     choices = city_list)
+  
+  updatePickerInput(session,
+                    inputId = "system",
+                    label = "Hospital system (optional):",
+                    choices = system_list)
+  
+  updatePickerInput(session,
+                    inputId = "hospital",
+                    label = "Choose a hospital:",
+                    choices = hospital_list)
+}, ignoreInit = TRUE)
+
+observeEvent(input$system, {
+  if (length(input$system) == 0 & length(input$city) == 0) {
+    hospital_list <-
+      input_list_df %>% filter(State == input$state) %>% pull(Hospital) %>% sort()
+  } else if (length(input$system) != 0 & length(input$city) == 0) {
+    hospital_list <-
+      input_list_df %>% filter(State == input$state &
+                                 System %in% input$system) %>% pull(Hospital) %>% sort()
+  } else if (length(input$system) == 0 & length(input$city) != 0) {
+    hospital_list <- 
+      input_list_df %>% filter(State == input$state &
+                                 City %in% input$city) %>% pull(Hospital) %>% sort()
+  } else {
+    hospital_list <- 
+      input_list_df %>% filter(State == input$state &
+                                 City %in% input$city &
+                                 System %in% input$system) %>% pull(Hospital) %>% sort()
+  }
   
   updatePickerInput(session,
                     inputId = "hospital",
@@ -226,13 +281,22 @@ observeEvent(input$state, {
 }, ignoreInit = TRUE)
 
 observeEvent(input$city, {
-  if (length(input$city) == 0) {
+  if (length(input$system) == 0 & length(input$city) == 0) {
     hospital_list <-
       input_list_df %>% filter(State == input$state) %>% pull(Hospital) %>% sort()
-  } else {
+  } else if (length(input$system) != 0 & length(input$city) == 0) {
     hospital_list <-
       input_list_df %>% filter(State == input$state &
+                                 System %in% input$system) %>% pull(Hospital) %>% sort()
+  } else if (length(input$system) == 0 & length(input$city) != 0) {
+    hospital_list <- 
+      input_list_df %>% filter(State == input$state &
                                  City %in% input$city) %>% pull(Hospital) %>% sort()
+  } else {
+    hospital_list <- 
+      input_list_df %>% filter(State == input$state &
+                                 City %in% input$city &
+                                 System %in% input$system) %>% pull(Hospital) %>% sort()
   }
   
   updatePickerInput(session,
@@ -242,8 +306,7 @@ observeEvent(input$city, {
 }, ignoreInit = TRUE)
 ```
 
-```{r}
-# Here, we draw the diversity gradient with ggplotly
+```{r output info}
 output$ui_output <- renderUI({
   costreports_df_react() %>%
     tail(n = 1) %>%
@@ -252,19 +315,20 @@ output$ui_output <- renderUI({
       number = Number,
       type = Type,
       control = Control,
+      system = System,
       address = Address
     ) %>%
-    mutate(display = pmap(list(name, number, type, control, address),
+    mutate(display = pmap(list(name, number, type, control, system, address),
                           hospital_name_fcn)) %>%
     pull(display)
 })
+#div(style = 'overflow-y: scroll', shiny::uiOutput('ui_output'))
 shiny::uiOutput("ui_output")
 ```
 
 ### Map of hospital location
 
-```{r}
-# Draw the map without selected tracts
+```{r output leaflet}
 output$map <- renderLeaflet({
   costreports_df_map <- costreports_df_react() %>%
     tail(n = 1) %>%
@@ -311,7 +375,7 @@ Row
 
 ### Hospital data by reporting period
 
-```{r}
+```{r output table}
 financial_tbl_gt <- reactive({
   costreports_df_react() %>%
     select(one_of(vars_table)) %>%
@@ -368,27 +432,9 @@ gt::gt_output('financial_table')
 Glossary
 ============================================================================
 
-```{r}
+```{r output glossary}
 glossary_tbl_gt <- 
-tibble::tribble(
-                    ~Variable,                                                                                                 ~Definition,                                                                                                         ~Location,
-                       "Beds",                                                           "Total number of available beds across all units",                                                                               "Worksheet S3-1, column 2, line 14",
-                        "CCN",                 "CMS certification number provided to each hospital facility that participates in Medicare",                                                                                    "Column 3 of the RPT.csv file",
-                    "Control",                                  "The hospital's type of control from its most recent Medicare cost report",                                                                                    "Column 2 of the RPT.csv file",
-                "DSH Funding",       "Medicare disproportionate share payment to support hospitals with large shares of indigent patients",                                                                                          "Worksheet E-A, line 34",
-                  "Employees",                                                                         "Total employees (FTEs) on payroll",                                                                              "Worksheet S3-1, column 10, line 14",
-              "Excess Margin",                                                              "Financial margin for all hospital activities", "(Net Patient Revenue - Operating Expense + Nonoperating Revenue) / (Net Patient Revenue + Nonoperating Revenue)",
-                    "IP Days",                                        "The total number of patient days in the hospital across all payers",                                                                               "Worksheet S3-1, column 8, line 14",
-              "IP Discharges",        "The total number of patients formally released by the hospital, including death, across all payers",                                                                              "Worksheet S3-1, column 15, line 14",
-  "Medical Education Funding",                          "Medicare funding for the indirect and direct costs of training medical residents",                                                        "Sum of worksheet E-A, line 29 and worksheet E-4, line 29",
-                 "Net Income",                        "Net income (or loss) for the period after accounting for all revenues and expenses",                                                                                 "Worksheet G3, column 1, line 29",
-        "Net Patient Revenue",                    "Revenue collected by the hospital for patient care after payer discounts (not charges)",                                                                                  "Worksheet G3, column 1, line 3",
-           "Operating Margin",                                            "Financial margin for patient care activities across all payers",                                          "(Net Patient Revenue - Total Operating Expenses) / Net Patient Revenue",
-          "Residents/Interns",                                                                        "Total interns and residents (FTEs)",                                                                               "Worksheet S3-1, column 9, line 14",
-            "Teaching Status", "Indicator of whether the hospital is training residents in an approved graduate medical education program",                                                                               "Worksheet S2-1, column 1, line 56",
-                       "Type",                           "Indicator of the type of hospital: critical access, short-term acute care, etc.",                                                                      "Determined by the last 4 digits of the CCN",
-    "Uncompensated Care Cost",                     "Cost of uncompensated care, including bad debt and charity care, provided to patients",                                                                                "Worksheet S10, column 1, line 30"
-  ) %>% 
+  read_csv(url('https://www.dropbox.com/s/mnptmvtsozl6upj/hcris_glossary.csv?raw=1')) %>% 
   gt()
 
 output$glossary <-
@@ -415,6 +461,11 @@ Please share any feedback you have on this project. You can [connect with me on 
 
 
 <style>
+
+body {
+    zoom: 0.8; /* Other non-webkit browsers */
+    zoom: 80%; /* Webkit browsers */
+}
 
 .section.sidebar {
 
