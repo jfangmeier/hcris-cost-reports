@@ -133,7 +133,7 @@ facility_type <- tribble(
 hcris_process_fcn <- function(x) {
   print(x)
   read_csv(
-    file.path(hcris_path, paste0("hosp10_", x, "_RPT.csv")),
+    file.path(hcris_path, paste0("HOSP10_", x, "_RPT.CSV")),
     col_names = FALSE,
     col_types = cols(.default = "c")
   ) %>%
@@ -155,7 +155,7 @@ hcris_process_fcn <- function(x) {
     select(-starts_with("X")) %>%
     inner_join(
       read_csv(file.path(
-        hcris_path, paste0("hosp10_", x, "_ALPHA.csv")
+        hcris_path, paste0("HOSP10_", x, "_ALPHA.CSV")
       ), col_names = FALSE) %>%
         rename(
           rpt_rec_num = X1,
@@ -171,7 +171,7 @@ hcris_process_fcn <- function(x) {
     ) %>%
     inner_join(
       read_csv(file.path(
-        hcris_path, paste0("hosp10_", x, "_NMRC.csv")
+        hcris_path, paste0("HOSP10_", x, "_NMRC.CSV")
       ), col_names = FALSE) %>%
         rename(
           rpt_rec_num = X1,
