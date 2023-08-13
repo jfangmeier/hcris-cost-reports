@@ -1,4 +1,9 @@
-library(tidyverse)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(here)
 library(readxl)
 library(lubridate)
 library(janitor)
@@ -70,7 +75,7 @@ hcris_download <- function(x) {
 walk(hcris_years, hcris_download)
 
 ##2. Load worksheet lookup, general information, and taxonomy tables
-lookup <- read_excel(here::here("data-raw", "hcris_lookup.xlsx")) %>% 
+lookup <- read_excel(here("data-raw", "hcris_lookup.xlsx")) %>% 
   filter(enabled == 1)
 
 hcris_num_vars <- lookup %>% 
@@ -82,7 +87,8 @@ hcris_synth_vars <- lookup %>%
   pull(var)
 
 gen_info <-
-  read_csv(here::here("data-raw", "hospital-general-information.csv")) %>%
+  # read_csv(url('https://data.cms.gov/provider-data/sites/default/files/resources/092256becd267d9eeccf73bf7d16c46b_1689206722/Hospital_General_Information.csv')) %>% 
+  read_csv(here("data-raw", "hospital-general-information.csv")) %>%
   mutate(
     prvdr_num = str_pad(
       as.character(prvdr_num),
@@ -300,5 +306,5 @@ hcris_df_final <-
   mutate(health_sys_name = ifelse(is.na(health_sys_name), "No Affiliation", health_sys_name))
 
 ##4. Save data frame as RDS file
-write_rds(hcris_df_final, here::here("data", "costreports.rds"))
-write_rds(release_df, here::here("data", "release.rds"))
+write_rds(hcris_df_final, here("data", "costreports.rds"))
+write_rds(release_df, here("data", "release.rds"))

@@ -13,11 +13,17 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           packages: |
-            any::tidyverse 
+            any::dplyr
+            any::readr
+            any::tidyr
+            any::stringr
+            any::purrr
+            any::here
+            any::readxl
+            any::lubridate
+            any::janitor
             any::httr
             any::rvest
-            any::janitor
-            any::here
 
       - name: Check out repository
         uses: actions/checkout@v3
