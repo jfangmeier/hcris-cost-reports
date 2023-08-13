@@ -34,8 +34,7 @@ library(gt)
 # Read in data
 #costreports <- readRDS(here::here("data", "costreports.rds")) 
 costreports <- 
-  readRDS(url('https://github.com/jfangmeier/hcris-cost-reports/raw/master/data/costreports.rds'))
-  # readRDS(url('https://www.dropbox.com/s/jvyw9v9gdpf0rea/costreports.rds?raw=1'))%>%
+  readRDS(url('https://github.com/jfangmeier/hcris-cost-reports/raw/main/data/costreports.rds')) %>% 
   mutate(period = paste0(
     stamp("March 1, 1999")(period_beg),
     " - ",
