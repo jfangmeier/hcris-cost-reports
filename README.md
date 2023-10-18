@@ -21,3 +21,9 @@ Github Actions. The resulting data (`data/costreports.rds`) is then used
 in a [`shiny`
 application](https://josh-fangmeier.shinyapps.io/hospital-profile/) to
 generate profile views of each reporting hospital.
+
+## Cost Report Data Available
+
+| System Provider Type | Form ID     | Beginning Fiscal Year | Ending Fiscal Year | Data Update | Data Release |
+|:---------------------|:------------|----------------------:|-------------------:|:------------|:-------------|
+| Hospitals - 2010     | CMS-2552-10 |                  2010 |               2023 | 2023-06-30  | 2023-07-17   |

@@ -9,6 +9,9 @@ library(lubridate)
 library(janitor)
 library(httr)
 library(rvest)
+library(rmarkdown)
+library(knitr)
+library(fs)
 
 #Pull the current release dates of the cost reports
 release_html <-
@@ -30,8 +33,10 @@ release_years <-
 
 release_txt <- 
   release_html %>% 
-  html_node(xpath = '//*[@id="block-cms-evo-content"]/div/article/div/div[1]/h2[3]') %>% 
+  # html_node(xpath = '//*[@id="block-cms-evo-content"]/div/article/div/div[1]/h2[3]') %>% 
+  html_elements('h2') %>% 
   html_text() %>% 
+  str_subset(pattern = "releaseed") %>% 
   str_extract_all(., pattern = "[:digit:]{1,2}\\/[:digit:]{1,2}\\/[:digit:]{4}")
 
 release_df <- 
@@ -308,3 +313,7 @@ hcris_df_final <-
 ##4. Save data frame as RDS file
 write_rds(hcris_df_final, here("data", "costreports.rds"))
 write_rds(release_df, here("data", "release.rds"))
+write_csv(release_df, here("data", "release.csv"))
+
+##5. Knit README
+render("README.Rmd")

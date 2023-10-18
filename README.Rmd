@@ -1,5 +1,7 @@
 ---
-output: github_document
+output: 
+  github_document:
+    html_preview: false
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -18,3 +20,29 @@ This repository includes code to download and process the CMS hospital cost repo
 The code (`R/hcris-script.R`) generates two forms of report data and select variables: records from hospitals representing their own fiscal year and records from hospitals converted to synthetic calendar years. The synthetic data method borrows from [Adam Sacarny's Stata code](https://github.com/asacarny/hospital-cost-reports) to complete this task (credit to Dr. Sacarny but any errors are mine alone).
 
 This data in this repository is scheduled to update quarterly using Github Actions. The resulting data (`data/costreports.rds`) is then used in a [`shiny` application](https://josh-fangmeier.shinyapps.io/hospital-profile/) to generate profile views of each reporting hospital.
+
+## Cost Report Data Available
+
+```{r}
+#| echo: FALSE
+#| message: FALSE
+
+library(knitr)
+library(dplyr)
+library(here)
+options(knitr.table.format = 'markdown')
+
+release_df <- readRDS(here("data", "release.rds"))
+
+release_df %>% 
+  rename(
+    "System Provider Type" = system,
+    "Form ID" = form,
+    "Beginning Fiscal Year" = fy_beg,
+    "Ending Fiscal Year" = fy_end,
+    "Data Update" = update_date,
+    "Data Release" = release_date
+  ) %>% 
+  kable()
+```
+
