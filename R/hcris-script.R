@@ -16,7 +16,7 @@ library(fs)
 #Pull the current release dates of the cost reports
 release_html <-
   read_html(
-    "https://www.cms.gov/research-statistics-data-and-systems/downloadable-public-use-files/cost-reports"
+    "https://www.cms.gov/data-research/statistics-trends-and-reports/cost-reports"
   )
 
 release_years <- 
@@ -33,10 +33,9 @@ release_years <-
 
 release_txt <- 
   release_html %>% 
-  # html_node(xpath = '//*[@id="block-cms-evo-content"]/div/article/div/div[1]/h2[3]') %>% 
   html_elements('h2') %>% 
   html_text() %>% 
-  str_subset(pattern = "releaseed") %>% 
+  str_subset(pattern = "released") %>% 
   str_extract_all(., pattern = "[:digit:]{1,2}\\/[:digit:]{1,2}\\/[:digit:]{4}")
 
 release_df <- 

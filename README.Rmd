@@ -26,6 +26,7 @@ This data in this repository is scheduled to update quarterly using Github Actio
 ```{r}
 #| echo: FALSE
 #| message: FALSE
+#| warning: FALSE
 
 library(knitr)
 library(dplyr)
