@@ -26,4 +26,4 @@ generate profile views of each reporting hospital.
 
 | System Provider Type | Form ID     | Beginning Fiscal Year | Ending Fiscal Year | Data Update | Data Release |
 | :------------------- | :---------- | --------------------: | -----------------: | :---------- | :----------- |
-| Hospitals - 2010     | CMS-2552-10 |                  2010 |               2023 | 2024-03-31  | 2024-04-11   |
+| Hospitals - 2010     | CMS-2552-10 |                  2010 |               2024 | 2024-06-30  | 2024-07-10   |
