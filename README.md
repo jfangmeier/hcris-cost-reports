@@ -25,5 +25,5 @@ generate profile views of each reporting hospital.
 ## Cost Report Data Available
 
 | System Provider Type | Form ID     | Beginning Fiscal Year | Ending Fiscal Year | Data Update | Data Release |
-| :------------------- | :---------- | --------------------: | -----------------: | :---------- | :----------- |
-| Hospitals - 2010     | CMS-2552-10 |                  2010 |               2024 | 2024-09-30  | 2024-10-17   |
+|:---------------------|:------------|----------------------:|-------------------:|:------------|:-------------|
+| Hospitals - 2010     | CMS-2552-10 |                  2010 |               2024 | 2024-12-31  | 2025-01-14   |
